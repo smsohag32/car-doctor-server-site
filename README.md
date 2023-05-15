@@ -16,3 +16,20 @@ name: req.body.name;
 
 
 ```
+
+# jwt example
+
+```
+app.get('/jwt', (req,res)=>{
+      const user = req.body;
+      const token = jwt.sing(user, process.env.ACCESS_TOKEN, {expiresIn: '1h'})
+      res.send({token})
+    })
+    app.get('/services', async (req,res)=>{
+      const result = await servicesCollection.find().toArray();
+      res.send(result);
+    })
+
+
+
+```

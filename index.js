@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv');
 const app = express();
 dotenv.config();
@@ -31,23 +32,46 @@ const client = new MongoClient(uri, {
   }
 });
 
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+
+  if(!authorization){
+    return res.status(401).send({error: true, message: 'unauthorized access'})
+  }
+  const token = authorization.split(' ')[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN, (error, decoded)=>{
+    if(error){
+      return res.status(401).send({error: true, message: 'unauthorized access'})
+    }
+    req.decoded = decoded;
+    next();
+
+  })
+}
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const servicesCollection = client.db('carDoctor').collection('services');
     const bookingCollection = client.db('carDoctor').collection('bookings')
-    // app.get('/services', async(req,res)=> {
-    //     const cursor = servicesCollection.find();
-    //     const result = await cursor.toArray();
-    //     res.send(result)
-    // })
-// all data get 
+    
+    // jwt 
+        app.get('/jwt', (req, res)=>{
+          const user = req.body;
+          const token = jwt.sign(user, process.env.ACCESS_TOKEN,{
+            expiresIn: '1h'
+          });
+          res.send({token});
+        })
+
+        // get services 
     app.get('/services', async (req,res)=>{
       const result = await servicesCollection.find().toArray();
       res.send(result);
     })
+
 
 
     // get specific id data in mongodb
@@ -67,7 +91,7 @@ async function run() {
       res.send(result)
     })
     // query params  ?email=sohag@gmail.com
-    app.get('/bookings', async(req,res)=>{
+    app.get('/bookings', verifyJWT, async(req,res)=>{
       // console.log(req.query);
       // let query = {};
       // if(req.query?.email){
@@ -75,6 +99,11 @@ async function run() {
       // }
       // const result = await bookingCollection.find(query).toArray();
       // res.send(result)
+      // const token = req.headers.authorization
+      const decoded = req.decoded;
+      if(decoded.email !== req.query.email){
+        return res.status(403).send({error: true, message: 'forobe access'})
+      }
       let query = {}
       if(req.query.email){
         query = { email: req.query.email}
@@ -86,6 +115,7 @@ async function run() {
 
     // post bookings
     app.post('/bookings', async(req,res)=>{
+
       const booking = req.body;
       const result = await bookingCollection.insertOne(booking)
       res.send(result)
